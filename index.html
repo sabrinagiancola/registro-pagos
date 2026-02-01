@@ -154,4 +154,124 @@
             <div class="totales">
                 <div class="total-item">
                     <div class="total-label">Total Bs.</div>
-                    <div class​​​​​​​​​​​​​​​​
+                    <div class="total-value" id="totalBs">0.00</div>
+                </div>
+                <div class="total-item">
+                    <div class="total-label">Total USD</div>
+                    <div class="total-value" id="totalUsd">$0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-card">
+            <form id="pagoForm">
+                <div class="form-group">
+                    <label for="montoBs">Monto en Bolívares</label>
+                    <input type="number" id="montoBs" step="0.01" required placeholder="Ej: 150.00">
+                </div>
+                <div class="form-group">
+                    <label for="tasa">Tasa (Bs/$)</label>
+                    <input type="number" id="tasa" step="0.01" required placeholder="Ej: 36.50">
+                </div>
+                <button type="submit" class="btn-primary">➕ Agregar Pago</button>
+            </form>
+        </div>
+
+        <div class="historial">
+            <div class="header-flex">
+                <h2>📋 Historial</h2>
+                <button onclick="resetearDatos()" class="btn-reset">🔄 Resetear</button>
+            </div>
+            <div id="listaRegistros">
+                <div class="empty-state">
+                    <p>No hay registros aún.<br>Agrega tu primer pago arriba.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let registros = JSON.parse(localStorage.getItem('registrosPagos')) || [];
+
+        function formatearNumero(num) {
+            return num.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatearFecha(fecha) {
+            const opciones = { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            return new Date(fecha).toLocaleDateString('es-VE', opciones);
+        }
+
+        function actualizarTotales() {
+            const totalBs = registros.reduce((sum, reg) => sum + reg.montoBs, 0);
+            const totalUsd = registros.reduce((sum, reg) => sum + reg.montoUsd, 0);
+            
+            document.getElementById('totalBs').textContent = formatearNumero(totalBs);
+            document.getElementById('totalUsd').textContent = '$' + formatearNumero(totalUsd);
+        }
+
+        function renderizarHistorial() {
+            const lista = document.getElementById('listaRegistros');
+            
+            if (registros.length === 0) {
+                lista.innerHTML = '<div class="empty-state"><p>No hay registros aún.<br>Agrega tu primer pago arriba.</p></div>';
+                return;
+            }
+
+            lista.innerHTML = registros.map(reg => `
+                <div class="registro">
+                    <div class="registro-fecha">${formatearFecha(reg.fecha)}</div>
+                    <div class="registro-detalles">
+                        <div class="registro-monto">Bs. ${formatearNumero(reg.montoBs)}</div>
+                        <div class="registro-monto">$${formatearNumero(reg.montoUsd)}</div>
+                        <div style="color: #6c757d; font-size: 12px;">Tasa: ${formatearNumero(reg.tasa)}</div>
+                    </div>
+                </div>
+            `).reverse().join('');
+        }
+
+        document.getElementById('pagoForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const montoBs = parseFloat(document.getElementById('montoBs').value);
+            const tasa = parseFloat(document.getElementById('tasa').value);
+            const montoUsd = montoBs / tasa;
+            
+            const nuevoRegistro = {
+                fecha: new Date().toISOString(),
+                montoBs: montoBs,
+                tasa: tasa,
+                montoUsd: montoUsd
+            };
+            
+            registros.push(nuevoRegistro);
+            localStorage.setItem('registrosPagos', JSON.stringify(registros));
+            
+            document.getElementById('montoBs').value = '';
+            document.getElementById('tasa').value = '';
+            document.getElementById('montoBs').focus();
+            
+            actualizarTotales();
+            renderizarHistorial();
+        });
+
+        function resetearDatos() {
+            if (confirm('¿Estás seguro de que quieres resetear todos los datos? Esta acción no se puede deshacer.')) {
+                registros = [];
+                localStorage.setItem('registrosPagos', JSON.stringify(registros));
+                actualizarTotales();
+                renderizarHistorial();
+            }
+        }
+
+        actualizarTotales();
+        renderizarHistorial();
+    </script>
+</body>
+</html>
