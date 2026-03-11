@@ -217,12 +217,17 @@
         }
         .registro-detalles {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 8px;
             font-size: 14px;
         }
         .registro-monto {
             font-weight: bold;
+        }
+        .registro-tasa {
+            color: #6c757d;
+            font-size: 12px;
+            text-align: right;
         }
         .empty-state {
             text-align: center;
@@ -476,7 +481,7 @@
                     <div class="registro-detalles">
                         <div class="registro-monto">Bs. ${formatearNumero(reg.montoBs)}</div>
                         <div class="registro-monto">$${formatearNumero(reg.montoUsd)}</div>
-                        <div style="color: #6c757d; font-size: 12px;">Tasa: ${formatearNumero(reg.tasa)}</div>
+                        <div class="registro-tasa">Tasa: ${formatearNumero(reg.tasa)}</div>
                     </div>
                 </div>
             `).reverse().join('');
