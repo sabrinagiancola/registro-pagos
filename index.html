@@ -71,15 +71,40 @@
             color: #495057;
             font-size: 14px;
         }
-        input {
+        input, select, textarea {
             width: 100%;
             padding: 12px;
             border: 2px solid #e9ecef;
             border-radius: 8px;
             font-size: 16px;
+            font-family: inherit;
         }
-        input:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
+            border-color: #667eea;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        .tipo-toggle {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .tipo-btn {
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .tipo-btn.active {
+            background: #667eea;
+            color: white;
             border-color: #667eea;
         }
         button {
@@ -120,10 +145,42 @@
             margin-bottom: 10px;
             border-left: 4px solid #667eea;
         }
+        .registro.compra {
+            border-left-color: #28a745;
+        }
+        .registro.venta {
+            border-left-color: #fd7e14;
+        }
+        .registro-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .registro-tipo {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .registro-tipo.compra {
+            background: #d4edda;
+            color: #155724;
+        }
+        .registro-tipo.venta {
+            background: #fff3cd;
+            color: #856404;
+        }
         .registro-fecha {
-            font-size: 12px;
+            font-size: 11px;
             color: #6c757d;
-            margin-bottom: 5px;
+        }
+        .registro-descripcion {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
         }
         .registro-detalles {
             display: grid;
@@ -145,6 +202,16 @@
             align-items: center;
             margin-bottom: 15px;
         }
+        .calc-preview {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #004085;
+            text-align: center;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -165,15 +232,33 @@
 
         <div class="form-card">
             <form id="pagoForm">
-                <div class="form-group">
-                    <label for="montoBs">Monto en Bolívares</label>
-                    <input type="number" id="montoBs" step="0.01" required placeholder="Ej: 150.00">
+                <div class="tipo-toggle">
+                    <div class="tipo-btn active" onclick="cambiarTipo('compra')">
+                        📗 Compra USD
+                    </div>
+                    <div class="tipo-btn" onclick="cambiarTipo('venta')">
+                        📙 Venta USD
+                    </div>
                 </div>
+
                 <div class="form-group">
-                    <label for="tasa">Tasa (Bs/$)</label>
+                    <label for="descripcion">Descripción</label>
+                    <input type="text" id="descripcion" required placeholder="Ej: Cena, Gasolina, Mercado">
+                </div>
+
+                <div class="form-group">
+                    <label for="monto" id="labelMonto">Monto en Bolívares (das)</label>
+                    <input type="number" id="monto" step="0.01" required placeholder="Ej: 150.00">
+                </div>
+
+                <div class="form-group">
+                    <label for="tasa">Tasa de cambio (Bs/$)</label>
                     <input type="number" id="tasa" step="0.01" required placeholder="Ej: 36.50">
                 </div>
-                <button type="submit" class="btn-primary">➕ Agregar Pago</button>
+
+                <div id="calcPreview" class="calc-preview" style="display: none;"></div>
+
+                <button type="submit" class="btn-primary">➕ Agregar Transacción</button>
             </form>
         </div>
 
@@ -184,7 +269,7 @@
             </div>
             <div id="listaRegistros">
                 <div class="empty-state">
-                    <p>No hay registros aún.<br>Agrega tu primer pago arriba.</p>
+                    <p>No hay registros aún.<br>Agrega tu primera transacción arriba.</p>
                 </div>
             </div>
         </div>
@@ -192,6 +277,55 @@
 
     <script>
         let registros = JSON.parse(localStorage.getItem('registrosPagos')) || [];
+        let tipoActual = 'compra';
+
+        function cambiarTipo(tipo) {
+            tipoActual = tipo;
+            
+            // Actualizar botones
+            document.querySelectorAll('.tipo-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Actualizar label
+            const labelMonto = document.getElementById('labelMonto');
+            if (tipo === 'compra') {
+                labelMonto.textContent = 'Monto en Bolívares (das)';
+            } else {
+                labelMonto.textContent = 'Monto en Dólares (das)';
+            }
+            
+            // Limpiar preview
+            document.getElementById('calcPreview').style.display = 'none';
+            
+            // Actualizar preview si hay datos
+            actualizarPreview();
+        }
+
+        function actualizarPreview() {
+            const monto = parseFloat(document.getElementById('monto').value);
+            const tasa = parseFloat(document.getElementById('tasa').value);
+            const preview = document.getElementById('calcPreview');
+            
+            if (monto && tasa) {
+                let resultado;
+                if (tipoActual === 'compra') {
+                    resultado = monto / tasa;
+                    preview.textContent = `Recibes: $${formatearNumero(resultado)}`;
+                } else {
+                    resultado = monto * tasa;
+                    preview.textContent = `Recibes: Bs. ${formatearNumero(resultado)}`;
+                }
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        // Actualizar preview al escribir
+        document.getElementById('monto').addEventListener('input', actualizarPreview);
+        document.getElementById('tasa').addEventListener('input', actualizarPreview);
 
         function formatearNumero(num) {
             return num.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -209,8 +343,18 @@
         }
 
         function actualizarTotales() {
-            const totalBs = registros.reduce((sum, reg) => sum + reg.montoBs, 0);
-            const totalUsd = registros.reduce((sum, reg) => sum + reg.montoUsd, 0);
+            let totalBs = 0;
+            let totalUsd = 0;
+            
+            registros.forEach(reg => {
+                if (reg.tipo === 'compra') {
+                    totalBs += reg.montoBs;
+                    totalUsd -= reg.montoUsd;
+                } else {
+                    totalBs -= reg.montoBs;
+                    totalUsd += reg.montoUsd;
+                }
+            });
             
             document.getElementById('totalBs').textContent = formatearNumero(totalBs);
             document.getElementById('totalUsd').textContent = '$' + formatearNumero(totalUsd);
@@ -220,13 +364,17 @@
             const lista = document.getElementById('listaRegistros');
             
             if (registros.length === 0) {
-                lista.innerHTML = '<div class="empty-state"><p>No hay registros aún.<br>Agrega tu primer pago arriba.</p></div>';
+                lista.innerHTML = '<div class="empty-state"><p>No hay registros aún.<br>Agrega tu primera transacción arriba.</p></div>';
                 return;
             }
 
             lista.innerHTML = registros.map(reg => `
-                <div class="registro">
-                    <div class="registro-fecha">${formatearFecha(reg.fecha)}</div>
+                <div class="registro ${reg.tipo}">
+                    <div class="registro-header">
+                        <span class="registro-tipo ${reg.tipo}">${reg.tipo === 'compra' ? 'Compra' : 'Venta'}</span>
+                        <span class="registro-fecha">${formatearFecha(reg.fecha)}</span>
+                    </div>
+                    <div class="registro-descripcion">${reg.descripcion}</div>
                     <div class="registro-detalles">
                         <div class="registro-monto">Bs. ${formatearNumero(reg.montoBs)}</div>
                         <div class="registro-monto">$${formatearNumero(reg.montoUsd)}</div>
@@ -239,23 +387,37 @@
         document.getElementById('pagoForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const montoBs = parseFloat(document.getElementById('montoBs').value);
+            const monto = parseFloat(document.getElementById('monto').value);
             const tasa = parseFloat(document.getElementById('tasa').value);
-            const montoUsd = montoBs / tasa;
+            const descripcion = document.getElementById('descripcion').value;
+            
+            let montoBs, montoUsd;
+            
+            if (tipoActual === 'compra') {
+                montoBs = monto;
+                montoUsd = monto / tasa;
+            } else {
+                montoUsd = monto;
+                montoBs = monto * tasa;
+            }
             
             const nuevoRegistro = {
                 fecha: new Date().toISOString(),
+                tipo: tipoActual,
+                descripcion: descripcion,
                 montoBs: montoBs,
-                tasa: tasa,
-                montoUsd: montoUsd
+                montoUsd: montoUsd,
+                tasa: tasa
             };
             
             registros.push(nuevoRegistro);
             localStorage.setItem('registrosPagos', JSON.stringify(registros));
             
-            document.getElementById('montoBs').value = '';
+            document.getElementById('monto').value = '';
             document.getElementById('tasa').value = '';
-            document.getElementById('montoBs').focus();
+            document.getElementById('descripcion').value = '';
+            document.getElementById('calcPreview').style.display = 'none';
+            document.getElementById('descripcion').focus();
             
             actualizarTotales();
             renderizarHistorial();
