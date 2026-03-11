@@ -304,4 +304,239 @@
 
                 <div class="form-group">
                     <label for="tasa">Tasa de cambio (Bs/$)</label>
-                    <input type="text" id="tasa" required placeholder="Ej: 36.50" inputmode="decima
+                    <input type="text" id="tasa" required placeholder="Ej: 36.50" inputmode="decimal">
+                </div>
+
+                <div id="calcPreview" class="calc-preview" style="display: none;"></div>
+
+                <button type="submit" class="btn-primary">➕ Agregar Transacción</button>
+            </form>
+        </div>
+
+        <div class="historial">
+            <div class="header-flex">
+                <h2>📋 Historial</h2>
+                <button onclick="resetearDatos()" class="btn-reset">🔄 Resetear</button>
+            </div>
+            <div id="listaRegistros">
+                <div class="empty-state">
+                    <p>No hay registros aún.<br>Agrega tu primera transacción arriba.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let registros = JSON.parse(localStorage.getItem('registrosPagos')) || [];
+        let tipoActual = 'compra';
+
+        function formatearInput(valor) {
+            // Remover todo excepto números, punto y coma
+            valor = valor.replace(/[^\d.,]/g, '');
+            
+            // Reemplazar coma por punto
+            valor = valor.replace(',', '.');
+            
+            // Permitir solo un punto decimal
+            const partes = valor.split('.');
+            if (partes.length > 2) {
+                valor = partes[0] + '.' + partes.slice(1).join('');
+            }
+            
+            return valor;
+        }
+
+        function formatearNumeroConSeparadores(num) {
+            const partes = num.toString().split('.');
+            partes[0] = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            return partes.join('.');
+        }
+
+        // Event listeners para formatear inputs
+        document.getElementById('monto').addEventListener('input', function(e) {
+            let valor = formatearInput(e.target.value);
+            e.target.value = valor;
+            actualizarPreview();
+        });
+
+        document.getElementById('tasa').addEventListener('input', function(e) {
+            let valor = formatearInput(e.target.value);
+            e.target.value = valor;
+            actualizarPreview();
+        });
+
+        function cambiarTipo(tipo) {
+            tipoActual = tipo;
+            
+            // Actualizar botones
+            document.querySelectorAll('.tipo-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Actualizar label
+            const labelMonto = document.getElementById('labelMonto');
+            if (tipo === 'compra') {
+                labelMonto.textContent = 'Monto en Bolívares (das)';
+            } else {
+                labelMonto.textContent = 'Monto en Dólares (das)';
+            }
+            
+            // Limpiar preview
+            document.getElementById('calcPreview').style.display = 'none';
+            
+            // Actualizar preview si hay datos
+            actualizarPreview();
+        }
+
+        function actualizarPreview() {
+            const montoStr = document.getElementById('monto').value;
+            const tasaStr = document.getElementById('tasa').value;
+            const monto = parseFloat(montoStr);
+            const tasa = parseFloat(tasaStr);
+            const preview = document.getElementById('calcPreview');
+            
+            if (monto && tasa && !isNaN(monto) && !isNaN(tasa)) {
+                let resultado;
+                if (tipoActual === 'compra') {
+                    resultado = monto / tasa;
+                    preview.textContent = `Recibes: $${formatearNumero(resultado)}`;
+                } else {
+                    resultado = monto * tasa;
+                    preview.textContent = `Recibes: Bs. ${formatearNumero(resultado)}`;
+                }
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        function formatearNumero(num) {
+            return num.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function formatearFecha(fecha) {
+            const opciones = { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            return new Date(fecha).toLocaleDateString('es-VE', opciones);
+        }
+
+        function actualizarTotales() {
+            let compraBs = 0, compraUsd = 0;
+            let ventaUsd = 0, ventaBs = 0;
+            
+            registros.forEach(reg => {
+                if (reg.tipo === 'compra') {
+                    compraBs += reg.montoBs;
+                    compraUsd += reg.montoUsd;
+                } else {
+                    ventaUsd += reg.montoUsd;
+                    ventaBs += reg.montoBs;
+                }
+            });
+            
+            document.getElementById('compraBs').textContent = formatearNumero(compraBs);
+            document.getElementById('compraUsd').textContent = '$' + formatearNumero(compraUsd);
+            document.getElementById('ventaUsd').textContent = '$' + formatearNumero(ventaUsd);
+            document.getElementById('ventaBs').textContent = formatearNumero(ventaBs);
+        }
+
+        function borrarRegistro(index) {
+            if (confirm('¿Estás seguro de que quieres borrar esta transacción?')) {
+                registros.splice(registros.length - 1 - index, 1);
+                localStorage.setItem('registrosPagos', JSON.stringify(registros));
+                actualizarTotales();
+                renderizarHistorial();
+            }
+        }
+
+        function renderizarHistorial() {
+            const lista = document.getElementById('listaRegistros');
+            
+            if (registros.length === 0) {
+                lista.innerHTML = '<div class="empty-state"><p>No hay registros aún.<br>Agrega tu primera transacción arriba.</p></div>';
+                return;
+            }
+
+            lista.innerHTML = registros.map((reg, index) => `
+                <div class="registro ${reg.tipo}">
+                    <div class="registro-header">
+                        <div class="registro-header-left">
+                            <span class="registro-tipo ${reg.tipo}">${reg.tipo === 'compra' ? 'Compra' : 'Venta'}</span>
+                            <span class="registro-fecha">${formatearFecha(reg.fecha)}</span>
+                        </div>
+                        <button class="btn-delete" onclick="borrarRegistro(${registros.length - 1 - index})">🗑️</button>
+                    </div>
+                    <div class="registro-descripcion">${reg.descripcion}</div>
+                    <div class="registro-detalles">
+                        <div class="registro-monto">Bs. ${formatearNumero(reg.montoBs)}</div>
+                        <div class="registro-monto">$${formatearNumero(reg.montoUsd)}</div>
+                        <div style="color: #6c757d; font-size: 12px;">Tasa: ${formatearNumero(reg.tasa)}</div>
+                    </div>
+                </div>
+            `).reverse().join('');
+        }
+
+        document.getElementById('pagoForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const monto = parseFloat(document.getElementById('monto').value);
+            const tasa = parseFloat(document.getElementById('tasa').value);
+            const descripcion = document.getElementById('descripcion').value;
+            
+            if (isNaN(monto) || isNaN(tasa)) {
+                alert('Por favor ingresa números válidos');
+                return;
+            }
+            
+            let montoBs, montoUsd;
+            
+            if (tipoActual === 'compra') {
+                montoBs = monto;
+                montoUsd = monto / tasa;
+            } else {
+                montoUsd = monto;
+                montoBs = monto * tasa;
+            }
+            
+            const nuevoRegistro = {
+                fecha: new Date().toISOString(),
+                tipo: tipoActual,
+                descripcion: descripcion,
+                montoBs: montoBs,
+                montoUsd: montoUsd,
+                tasa: tasa
+            };
+            
+            registros.push(nuevoRegistro);
+            localStorage.setItem('registrosPagos', JSON.stringify(registros));
+            
+            document.getElementById('monto').value = '';
+            document.getElementById('tasa').value = '';
+            document.getElementById('descripcion').value = '';
+            document.getElementById('calcPreview').style.display = 'none';
+            document.getElementById('descripcion').focus();
+            
+            actualizarTotales();
+            renderizarHistorial();
+        });
+
+        function resetearDatos() {
+            if (confirm('¿Estás seguro de que quieres resetear todos los datos? Esta acción no se puede deshacer.')) {
+                registros = [];
+                localStorage.setItem('registrosPagos', JSON.stringify(registros));
+                actualizarTotales();
+                renderizarHistorial();
+            }
+        }
+
+        actualizarTotales();
+        renderizarHistorial();
+    </script>
+</body>
+</html>
